@@ -1,0 +1,73 @@
+---
+title: "LASSO and Linear Regression"
+author: "Parissa Amin"
+date: "2022-10-09"
+output: pdf_document
+---
+
+
+
+# Loading the data
+
+Loading and scaling.
+
+```{r}
+library(coefplot)
+library(glmnet) 
+library(dplyr) 
+library(ggplot2)  
+library(reshape2)
+
+x<-read.csv("D:/MultiOmics/Data/FeatVal.csv") 
+rownames(x) <- x[,2]; x <- x[,-1:-2]  
+x <- x[, c(names(x)[-which(names(x) == "Response")], "Response")]
+x[x=="False"] <- 0 
+x[x=="True"] <- 1 
+
+x[] <- lapply(x, as.numeric)
+x[,1:93] <- scale(x[,1:93] ) 
+x[x=="NaN"] <- 0 
+```
+
+
+#Linear 
+```{r}
+Model<-lm(x$Response~.,data=x[,1:93])
+summary(Model)
+```
+
+
+#LASSO
+
+```{r}
+y1<-data.matrix(x[,1:93])
+y2<-data.matrix(x$Response) 
+
+cv_model <- cv.glmnet(y1,y2, alpha = 1)
+best_lambda <- cv_model$lambda.min
+lasso_coef=predict(cv_model,type="coefficients",s=best_lambda)[1:93,]
+nonzeroCoef<-lasso_coef[which(lasso_coef!=0)]  
+nonzeroCoef<- as.data.frame(nonzeroCoef)
+nonzeroCoef[,2]<- rownames(nonzeroCoef)
+nonzeroCoef.m<- melt(nonzeroCoef)
+```
+
+
+Cross validation LASSO:  
+
+```{r}
+plot(cv_model)
+```
+
+ 
+```{r}
+ggplot(nonzeroCoef.m,aes(x=V2,y=value,color=V2))+geom_point(size=5)+
+  theme(text = element_text(size =8))+ 
+  theme(axis.text.x=element_text(angle = -90, hjust = 0))
+
+```
+
+
+
+# Conlusion
+Along side the ML and XAI model, I wanted to try two more traditional approaches to fit features to response to NAC. I used lineasr regression and and LASSO. While linear regression doesnt identify many significant features, lasso gives me 8 features that are relatively similar to the features I found to be important using SHAP values. 
