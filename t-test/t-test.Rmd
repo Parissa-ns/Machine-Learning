@@ -1,0 +1,109 @@
+---
+title: "t test comparing pCR vs RD samples"
+author: "Parissa Amin"
+date: "2022-10-12"
+output: pdf_document
+---
+
+
+
+ 
+
+```{r,  out.width="100%" }
+library(dplyr) 
+library(ggplot2)  
+library(reshape2)
+library(ggpubr) 
+library(rstatix)
+library(EnvStats)
+
+x<-read.csv("D:/MultiOmics/Data/FeatVal.csv") 
+rownames(x) <- x[,2]; x <- x[,-1:-2]  
+
+x <- x[, c(names(x)[-which(names(x) == "Response")], "Response")]
+x[x=="False"] <- 0 
+x[x=="True"] <- 1 
+
+x$Response <- ifelse(x$Response == 0, "RD", "pCR")
+x[x=="NaN"] <- 0 
+
+x[,1:93] <- lapply(x[,1:93], as.numeric)
+
+x[,1:93] <- scale(x[,1:93])
+x[x=="NaN"] <- 0 
+
+x.m <- melt(x) 
+
+
+colnames(x.m) <- c("Response", "Feature", "value")
+
+t_test <- x.m %>%
+  group_by(Feature) %>%
+  t_test(value ~ Response) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance("p.adj")
+
+t_test <- t_test %>%
+  add_xy_position(fun = "mean_se", x ="Response")  
+
+  
+
+t_test <- x.m %>%
+  group_by(Feature) %>%
+  t_test(value ~ Response) %>%
+  adjust_pvalue(method = "bonferroni") %>%
+  add_significance("p.adj")
+
+t_test <- t_test %>%
+  add_xy_position(fun = "mean_se", x ="Response")  
+
+
+t_test <- subset(t_test,t_test$p<0.05)
+
+x.m <- subset(x.m, x.m$Feature %in% t_test$Feature)
+
+```
+
+
+```{r, fig.width=9, fig.height = 14}
+ggplot(x.m, aes(x=Response, y=value, color=Response)) +
+  geom_violin() +
+  geom_boxplot(width=0.1, alpha=0.2) + 
+  facet_wrap(~Feature, ncol=6) +  
+  stat_pvalue_manual(t_test, label="p", size=4) +
+  stat_n_text(size=4) + 
+  theme_bw() +
+  theme(text=element_text(size=13)) + 
+  theme(legend.position="none")
+```
+
+
+Showing features with significant differences
+
+
+```{r}
+
+
+t_test <- subset(t_test,t_test$p.adj<0.05)
+t_test2 <- t_test
+
+t_test2$statistic2<-t_test2$statistic/ abs(t_test2$statistic)
+t_test2$`-Log(p.adj)*Direction` <- - log10(t_test2$p.adj ) * t_test2$statistic2
+t_test2 <- t_test2[order(-t_test2$`-Log(p.adj)*Direction`),]
+
+t_test2$Feature<- as.character(t_test2$Feature)
+t_test2$Feature <- factor(t_test2$Feature, levels=t_test2$Feature)
+
+t_test2 <- t_test2[, c(1,16,17)]
+
+ggplot(t_test2, aes(x=Feature, y=`-Log(p.adj)*Direction`, fill= as.factor(statistic2)))+
+  geom_bar(stat="identity", width=0.65)+
+  scale_color_discrete(name="")+theme(axis.title.y=element_blank())+
+  theme_bw()+theme(text=element_text(size =14))+theme(axis.text.x=element_text(angle=90))+
+  theme(legend.position="none")+
+  ylim(-4, 4) 
+ 
+
+```
+
+ 
